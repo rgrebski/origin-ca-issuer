@@ -50,11 +50,11 @@ controller:
 
   resources:
     limits:
-      cpu: 100m
-      memory: 50Mi
+      cpu: "1"
+      memory: 512Mi
     requests:
-      cpu: 100m
-      memory: 50Mi
+      cpu: "1"
+      memory: 512Mi
 
   # Optional Pod Security Context
   # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

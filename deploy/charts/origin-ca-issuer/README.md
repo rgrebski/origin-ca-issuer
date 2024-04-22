@@ -42,35 +42,36 @@ kubectl delete -f https://raw.githubusercontent.com/cloudflare/origin-ca-issuer/
 
 The following table lists the configurable parameters of the origin-ca-issuer chart and their default values.
 
-| Parameter                             | Description                                                                             | Default                          |
-|---------------------------------------|-----------------------------------------------------------------------------------------|----------------------------------|
-| `global.imagePullSecrets`             | Reference to one or more secrets to be used when pulling images                         | `[]`                             |
-| `global.rbac.create`                  | If `true`, create and use RBAC resources                                                | `true`                           |
-| `global.priorityClassName`            | Priority class name for origin-ca-issuer pods                                           | `""`                             |
-| `image.repository`                    | Image repository                                                                        | `cloudflare/origin-ca-issuer`    |
-| `image.tag`                           | Image tag                                                                               | `""`                             |
-| `image.digest`                        | Image digest                                                                            | `"sha256:{{ MANIFEST_DIGEST }}"` |
-| `image.pullPolicy`                    | Image pull policy                                                                       | `Always`                         |
-| `controller.deploymentAnnotations`    | Annotations to add to the origin-ca-issuer deployment                                   | `{}`                             |
-| `controller.deploymentLabels`         | Labels to add to the origin-ca-issuer deployment                                        | `{}`                             |
-| `controller.podAnntoations`           | Annotations to add to the origin-ca-issuer pods                                         | `{}`                             |
-| `controller.podLabels`                | Labels to add to the origin-ca-issuer pods.                                             | `{}`                             |
-| `controller.replicaCount`             | Number of origin-ca-issuer controller replicas                                          | `1`                              |
-| `controller.featureGates`             | Comma-separated list of feature gates to enable on the controller pod                   | `""`                             |
-| `controller.extraArgs`                | Optional flags for origin-ca-issuer                                                     | `[]`                             |
-| `controller.extraEnv`                 | Optional environment variables for origin-ca-issuer                                     | `[]`                             |
-| `controller.serviceAccount.enable`    | If `true`, create a new service account                                                 | `true`                           |
-| `controller.serviceAccount.name`      | Service account to be used. If not set, a name is generated using the fullname template |                                  |
-| `controller.volumes`                  | Optional volumes for origin-ca-issuer                                                   | `[]`                             |
-| `controller.volumeMounts`             | Optional volume mounts for origin-ca-issuer                                             | `[]`                             |
-| `controller.securityContext`          | Optional security context. The YAML block should adhere to the SecurityContext spec     | `{}`                             |
-| `controller.containerSecurityContext` | Optional container security context                                                     | `{}`                             |
-| `controller.nodeSelector`             | Node labels for pod assignment                                                          | `{}`                             |
-| `controller.affinity`                 | Node (anti-)affinity for pod assignment                                                 | `{}`                             |
-| `controller.tolerations`              | Node tolerations for pod assignment                                                     | `{}`                             |
-| `controller.disableApprovedCheck`     | Disable waiting for CertificateRequests to be Approved before signing                   | `false`                          |
-| `certmanager.namespace`               | Namespace where the cert-manager controller is running.                                 | `cert-manager`                   |
-| `certmanager.serviceAccountName`      | The Service Account used by the cert-manager controller.                                | `cert-manager`                   |
+| Parameter                             | Description                                                                             | Default                                                                        |
+|---------------------------------------|-----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| `global.imagePullSecrets`             | Reference to one or more secrets to be used when pulling images                         | `[]`                                                                           |
+| `global.rbac.create`                  | If `true`, create and use RBAC resources                                                | `true`                                                                         |
+| `global.priorityClassName`            | Priority class name for origin-ca-issuer pods                                           | `""`                                                                           |
+| `image.repository`                    | Image repository                                                                        | `cloudflare/origin-ca-issuer`                                                  |
+| `image.tag`                           | Image tag                                                                               | `""`                                                                           |
+| `image.digest`                        | Image digest                                                                            | `"sha256:{{ MANIFEST_DIGEST }}"`                                               |
+| `image.pullPolicy`                    | Image pull policy                                                                       | `Always`                                                                       |
+| `controller.deploymentAnnotations`    | Annotations to add to the origin-ca-issuer deployment                                   | `{}`                                                                           |
+| `controller.deploymentLabels`         | Labels to add to the origin-ca-issuer deployment                                        | `{}`                                                                           |
+| `controller.podAnntoations`           | Annotations to add to the origin-ca-issuer pods                                         | `{}`                                                                           |
+| `controller.podLabels`                | Labels to add to the origin-ca-issuer pods.                                             | `{}`                                                                           |
+| `controller.replicaCount`             | Number of origin-ca-issuer controller replicas                                          | `1`                                                                            |
+| `controller.featureGates`             | Comma-separated list of feature gates to enable on the controller pod                   | `""`                                                                           |
+| `controller.extraArgs`                | Optional flags for origin-ca-issuer                                                     | `[]`                                                                           |
+| `controller.extraEnv`                 | Optional environment variables for origin-ca-issuer                                     | `[]`                                                                           |
+| `controller.serviceAccount.enable`    | If `true`, create a new service account                                                 | `true`                                                                         |
+| `controller.serviceAccount.name`      | Service account to be used. If not set, a name is generated using the fullname template |                                                                                |
+| `controller.volumes`                  | Optional volumes for origin-ca-issuer                                                   | `[]`                                                                           |
+| `controller.volumeMounts`             | Optional volume mounts for origin-ca-issuer                                             | `[]`                                                                           |
+| `controller.securityContext`          | Optional security context. The YAML block should adhere to the SecurityContext spec     | `{}`                                                                           |
+| `controller.containerSecurityContext` | Optional container security context                                                     | `{}`                                                                           |
+| `controller.nodeSelector`             | Node labels for pod assignment                                                          | `{}`                                                                           |
+| `controller.affinity`                 | Node (anti-)affinity for pod assignment                                                 | `{}`                                                                           |
+| `controller.tolerations`              | Node tolerations for pod assignment                                                     | `{}`                                                                           |
+| `controller.disableApprovedCheck`     | Disable waiting for CertificateRequests to be Approved before signing                   | `false`                                                                        |
+| `controller.resources`                | The resource request and limits.                                                        | `{requests: {cpu: "1", memory: "512Mi"}, limits: {cpu: "1", memory: "512Mi"}}` |
+| `certmanager.namespace`               | Namespace where the cert-manager controller is running.                                 | `cert-manager`                                                                 |
+| `certmanager.serviceAccountName`      | The Service Account used by the cert-manager controller.                                | `cert-manager`                                                                 |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 
