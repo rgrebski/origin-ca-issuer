@@ -2,11 +2,13 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	cmutil "github.com/cert-manager/cert-manager/pkg/api/util"
 	certmanager "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
 	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"github.com/go-logr/logr"
@@ -16,6 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+const originDBWriteErrorCode = 1100
 
 // CertificateRequestController implements a controller that reconciles CertificateRequests
 // that references this controller.
@@ -135,6 +139,15 @@ func (r *CertificateRequestController) Reconcile(ctx context.Context, cr *certma
 	}
 
 	pem, err := p.Sign(ctx, cr)
+
+	var apiError *cfapi.APIError
+	if errors.As(err, &apiError) {
+		if apiError.Code == originDBWriteErrorCode {
+			log.Error(err, "requeue-ing after API error")
+			return reconcile.Result{}, err
+		}
+	}
+
 	if err != nil {
 		log.Error(err, "failed to sign certificate request")
 		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonFailed, fmt.Sprintf("Failed to sign certificate request: %v", err))

@@ -11,10 +11,9 @@ import (
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	cmgen "github.com/cert-manager/cert-manager/test/unit/gen"
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
-	fakeapi "github.com/cloudflare/origin-ca-issuer/internal/cfapi/testing"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
 	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
-	"github.com/google/go-cmp/cmp"
+	"gotest.tools/v3/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -97,8 +96,8 @@ func TestCertificateRequestReconcile(t *testing.T) {
 						Namespace: "default",
 					},
 					Provisioner: (func() *provisioners.Provisioner {
-						c := &fakeapi.FakeClient{
-							Response: &cfapi.SignResponse{
+						c := SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
+							return &cfapi.SignResponse{
 								Id:          "1",
 								Certificate: "bogus",
 								Hostnames:   []string{"example.com"},
@@ -106,8 +105,8 @@ func TestCertificateRequestReconcile(t *testing.T) {
 								Type:        "colemak",
 								Validity:    0,
 								CSR:         "foobar",
-							},
-						}
+							}, nil
+						})
 						p, err := provisioners.New(c, v1.RequestTypeOriginRSA, logf.Log)
 						if err != nil {
 							t.Fatalf("error creating provisioner: %s", err)
@@ -134,6 +133,78 @@ func TestCertificateRequestReconcile(t *testing.T) {
 				Name:      "foobar",
 			},
 		},
+		{
+			name: "requeue after API error",
+			objects: []runtime.Object{
+				cmgen.CertificateRequest("foobar",
+					cmgen.SetCertificateRequestNamespace("default"),
+					cmgen.SetCertificateRequestDuration(&metav1.Duration{Duration: 7 * 24 * time.Hour}),
+					cmgen.SetCertificateRequestCSR((func() []byte {
+						csr, _, err := cmgen.CSR(x509.ECDSA)
+						if err != nil {
+							t.Fatalf("creating CSR: %s", err)
+						}
+
+						return csr
+					})()),
+					cmgen.SetCertificateRequestIssuer(cmmeta.ObjectReference{
+						Name:  "foobar",
+						Kind:  "OriginIssuer",
+						Group: "cert-manager.k8s.cloudflare.com",
+					}),
+				),
+				&v1.OriginIssuer{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foobar",
+						Namespace: "default",
+					},
+					Spec: v1.OriginIssuerSpec{
+						Auth: v1.OriginIssuerAuthentication{
+							ServiceKeyRef: v1.SecretKeySelector{
+								Name: "service-key-issuer",
+								Key:  "key",
+							},
+						},
+					},
+					Status: v1.OriginIssuerStatus{
+						Conditions: []v1.OriginIssuerCondition{
+							{
+								Type:   v1.ConditionReady,
+								Status: v1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			collection: provisioners.CollectionWith([]provisioners.CollectionItem{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      "foobar",
+						Namespace: "default",
+					},
+					Provisioner: (func() *provisioners.Provisioner {
+						c := SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
+							return nil, &cfapi.APIError{
+								Code:    1100,
+								Message: "Failed to write certificate to Database",
+								RayID:   "7d3eb086eedab98e",
+							}
+						})
+						p, err := provisioners.New(c, v1.RequestTypeOriginRSA, logf.Log)
+						if err != nil {
+							t.Fatalf("error creating provisioner: %s", err)
+						}
+
+						return p
+					}()),
+				},
+			}),
+			namespaceName: types.NamespacedName{
+				Namespace: "default",
+				Name:      "foobar",
+			},
+			error: "unable to sign request: Cloudflare API Error code=1100 message=Failed to write certificate to Database ray_id=7d3eb086eedab98e",
+		},
 	}
 
 	for _, tt := range tests {
@@ -156,24 +227,20 @@ func TestCertificateRequestReconcile(t *testing.T) {
 			})
 
 			if err != nil {
-				if diff := cmp.Diff(err.Error(), tt.error); diff != "" {
-					t.Fatalf("diff: (-wanted +got)\n%s", diff)
-				}
+				assert.Error(t, err, tt.error)
+			} else {
+				assert.NilError(t, err)
 			}
 
 			got := &cmapi.CertificateRequest{}
-			if err := client.Get(context.TODO(), tt.namespaceName, got); err != nil {
-				t.Fatalf("expected to retrieve issuer from client: %s", err)
-			}
-			if diff := cmp.Diff(got.Status, tt.expected); diff != "" {
-				t.Fatalf("diff: (-want +got)\n%s", diff)
-			}
-
-			if tt.error == "" {
-				if _, ok := controller.Collection.Load(tt.namespaceName); !ok {
-					t.Fatal("was unable to find provisioner")
-				}
-			}
+			assert.NilError(t, client.Get(context.TODO(), tt.namespaceName, got))
+			assert.DeepEqual(t, got.Status, tt.expected)
 		})
 	}
+}
+
+type SignerFunc func(context.Context, *cfapi.SignRequest) (*cfapi.SignResponse, error)
+
+func (f SignerFunc) Sign(ctx context.Context, req *cfapi.SignRequest) (*cfapi.SignResponse, error) {
+	return f(ctx, req)
 }

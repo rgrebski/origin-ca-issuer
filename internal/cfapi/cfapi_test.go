@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"gotest.tools/v3/assert"
 )
 
 func TestSignResponse_Unmarshal(t *testing.T) {
@@ -59,13 +59,8 @@ func TestSignResponse_Unmarshal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var resp SignResponse
 
-			if err := json.Unmarshal(tt.payload, &resp); err != nil {
-				t.Fatalf("unable to unmarsahl: %s", err)
-			}
-
-			if diff := cmp.Diff(resp, expected); diff != "" {
-				t.Fatalf("diff: (-want +got)\n%s", diff)
-			}
+			assert.NilError(t, json.Unmarshal(tt.payload, &resp))
+			assert.DeepEqual(t, resp, expected)
 		})
 	}
 }
@@ -73,10 +68,11 @@ func TestSignResponse_Unmarshal(t *testing.T) {
 func TestSign(t *testing.T) {
 	expectedTime := time.Date(2020, time.December, 25, 6, 27, 0, 0, time.UTC)
 	tests := []struct {
-		name     string
-		handler  http.Handler
-		response *SignResponse
-		error    string
+		name      string
+		handler   http.Handler
+		response  *SignResponse
+		error     string
+		errorType error
 	}{
 		{name: "API success",
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,8 +114,9 @@ func TestSign(t *testing.T) {
 	"result": {}
 }`)
 			}),
-			response: nil,
-			error:    "Cloudflare API Error code=9001 message=Over Nine Thousand! ray_id=0123456789abcdef-ABC",
+			response:  nil,
+			error:     "Cloudflare API Error code=9001 message=Over Nine Thousand! ray_id=0123456789abcdef-ABC",
+			errorType: &APIError{},
 		},
 	}
 
@@ -140,14 +137,13 @@ func TestSign(t *testing.T) {
 				CSR:       "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
 			})
 
-			if diff := cmp.Diff(resp, tt.response); diff != "" {
-				t.Fatalf("diff: (-want +got)\n%s", diff)
-			}
+			assert.DeepEqual(t, resp, tt.response)
 
 			if tt.error != "" {
-				if diff := cmp.Diff(err.Error(), tt.error); diff != "" {
-					t.Fatalf("diff: (-want +got)\n%s", diff)
-				}
+				assert.Error(t, err, tt.error)
+				assert.ErrorType(t, err, tt.errorType)
+			} else {
+				assert.NilError(t, err)
 			}
 		})
 	}
