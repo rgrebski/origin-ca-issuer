@@ -21,9 +21,30 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: |
+            go-pkg-mod
+            root-cache-go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          cache-map: |
+            {
+              "go-pkg-mod": "/go/pkg/mod",
+              "root-cache-go-build": "/root/.cache/go-build"
+            }
+          skip-extraction: ${{ steps.cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v5
         with:
           file: ./cmd/controller/Dockerfile
           platforms: linux/amd64, linux/arm64
+          sbom: true
           tags: ${{ steps.docker-meta.outputs.tags }}
+          labels: ${{ steps.docker-meta.outputs.labels }}
           push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
