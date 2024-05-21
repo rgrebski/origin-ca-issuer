@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.21.5-bookworm AS builder
+FROM docker.io/library/golang:1.22.3-bookworm AS builder
 WORKDIR /go/src/app
 ADD . /go/src/app
 
