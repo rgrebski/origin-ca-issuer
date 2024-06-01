@@ -7,14 +7,12 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sync"
 
 	certmanager "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/cert-manager/cert-manager/pkg/util/pki"
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -23,30 +21,6 @@ const (
 )
 
 var allowedValidty = []int{7, 30, 90, 365, 730, 1095, 5475}
-
-// Collection stores cached Provisioners, stored by namespaced names of the
-// issuer.
-type Collection struct {
-	m sync.Map
-}
-
-// A CollectionItem allows for the namespaced name and provisioner to
-// be stored together.
-type CollectionItem struct {
-	NamespacedName types.NamespacedName
-	Provisioner    *Provisioner
-}
-
-// CollectionWith returns a Collection storing the provided provisioners.
-func CollectionWith(items []CollectionItem) *Collection {
-	c := &Collection{}
-
-	for _, i := range items {
-		c.Store(i.NamespacedName, i.Provisioner)
-	}
-
-	return c
-}
 
 // Provisioner allows for CertificateRequests to be signed using the stored
 // Cloudflare API client.
@@ -71,24 +45,6 @@ func New(client Signer, reqType v1.RequestType, log logr.Logger) (*Provisioner, 
 	}
 
 	return p, nil
-}
-
-// Store adds a provisioner to the collection.
-func (c *Collection) Store(namespacedName types.NamespacedName, provisioner *Provisioner) {
-	c.m.Store(namespacedName, provisioner)
-}
-
-// Load returns the stored provisioner, or returns false if nothing is cached with
-// the proved namespaced name.
-func (c *Collection) Load(namespacedName types.NamespacedName) (*Provisioner, bool) {
-	v, ok := c.m.Load(namespacedName)
-	if !ok {
-		return nil, ok
-	}
-
-	p, ok := v.(*Provisioner)
-
-	return p, ok
 }
 
 // Sign uses the Cloduflare API to sign a CertificateRequest. The validity of the CertificateRequest is

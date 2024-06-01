@@ -12,8 +12,8 @@ import (
 	cmgen "github.com/cert-manager/cert-manager/test/unit/gen"
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
-	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"gotest.tools/v3/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,7 +41,7 @@ func TestCertificateRequestReconcile(t *testing.T) {
 	tests := []struct {
 		name          string
 		objects       []runtime.Object
-		collection    *provisioners.Collection
+		signer        SignerFunc
 		expected      cmapi.CertificateRequestStatus
 		error         string
 		namespaceName types.NamespacedName
@@ -88,33 +88,26 @@ func TestCertificateRequestReconcile(t *testing.T) {
 						},
 					},
 				},
-			},
-			collection: provisioners.CollectionWith([]provisioners.CollectionItem{
-				{
-					NamespacedName: types.NamespacedName{
-						Name:      "foobar",
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "service-key-issuer",
 						Namespace: "default",
 					},
-					Provisioner: (func() *provisioners.Provisioner {
-						c := SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
-							return &cfapi.SignResponse{
-								Id:          "1",
-								Certificate: "bogus",
-								Hostnames:   []string{"example.com"},
-								Expiration:  time.Time{},
-								Type:        "colemak",
-								Validity:    0,
-								CSR:         "foobar",
-							}, nil
-						})
-						p, err := provisioners.New(c, v1.RequestTypeOriginRSA, logf.Log)
-						if err != nil {
-							t.Fatalf("error creating provisioner: %s", err)
-						}
-
-						return p
-					}()),
+					Data: map[string][]byte{
+						"key": []byte("djEuMC0weDAwQkFCMTBD"),
+					},
 				},
+			},
+			signer: SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
+				return &cfapi.SignResponse{
+					Id:          "1",
+					Certificate: "bogus",
+					Hostnames:   []string{"example.com"},
+					Expiration:  time.Time{},
+					Type:        "colemak",
+					Validity:    0,
+					CSR:         "foobar",
+				}, nil
 			}),
 			expected: cmapi.CertificateRequestStatus{
 				Conditions: []cmapi.CertificateRequestCondition{
@@ -175,29 +168,22 @@ func TestCertificateRequestReconcile(t *testing.T) {
 						},
 					},
 				},
-			},
-			collection: provisioners.CollectionWith([]provisioners.CollectionItem{
-				{
-					NamespacedName: types.NamespacedName{
-						Name:      "foobar",
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "service-key-issuer",
 						Namespace: "default",
 					},
-					Provisioner: (func() *provisioners.Provisioner {
-						c := SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
-							return nil, &cfapi.APIError{
-								Code:    1100,
-								Message: "Failed to write certificate to Database",
-								RayID:   "7d3eb086eedab98e",
-							}
-						})
-						p, err := provisioners.New(c, v1.RequestTypeOriginRSA, logf.Log)
-						if err != nil {
-							t.Fatalf("error creating provisioner: %s", err)
-						}
-
-						return p
-					}()),
+					Data: map[string][]byte{
+						"key": []byte("djEuMC0weDAwQkFCMTBD"),
+					},
 				},
+			},
+			signer: SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
+				return nil, &cfapi.APIError{
+					Code:    1100,
+					Message: "Failed to write certificate to Database",
+					RayID:   "7d3eb086eedab98e",
+				}
 			}),
 			namespaceName: types.NamespacedName{
 				Namespace: "default",
@@ -217,9 +203,12 @@ func TestCertificateRequestReconcile(t *testing.T) {
 				Build()
 
 			controller := &CertificateRequestController{
-				Client:     client,
-				Log:        logf.Log,
-				Collection: tt.collection,
+				Client: client,
+				Reader: client,
+				Log:    logf.Log,
+				Factory: cfapi.FactoryFunc(func(serviceKey []byte) (cfapi.Interface, error) {
+					return tt.signer, nil
+				}),
 			}
 
 			_, err := reconcile.AsReconciler(client, controller).Reconcile(context.Background(), reconcile.Request{

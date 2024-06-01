@@ -6,7 +6,6 @@ import (
 
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
-	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"github.com/go-logr/logr"
 	core "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,10 +19,10 @@ import (
 // to OriginIssuer resources.
 type OriginIssuerController struct {
 	client.Client
-	Log        logr.Logger
-	Clock      clock.Clock
-	Factory    cfapi.Factory
-	Collection *provisioners.Collection
+	Reader  client.Reader
+	Log     logr.Logger
+	Clock   clock.Clock
+	Factory cfapi.Factory
 }
 
 //go:generate controller-gen rbac:roleName=originissuer-control paths=./. output:rbac:artifacts:config=../../deploy/rbac
@@ -49,7 +48,7 @@ func (r *OriginIssuerController) Reconcile(ctx context.Context, iss *v1.OriginIs
 		Name:      iss.Spec.Auth.ServiceKeyRef.Name,
 	}
 
-	if err := r.Client.Get(ctx, secretNamespaceName, &secret); err != nil {
+	if err := r.Reader.Get(ctx, secretNamespaceName, &secret); err != nil {
 		log.Error(err, "failed to retieve OriginIssuer auth secret", "namespace", secretNamespaceName.Namespace, "name", secretNamespaceName.Name)
 
 		if apierrors.IsNotFound(err) {
@@ -61,7 +60,7 @@ func (r *OriginIssuerController) Reconcile(ctx context.Context, iss *v1.OriginIs
 		return reconcile.Result{}, err
 	}
 
-	serviceKey, ok := secret.Data[iss.Spec.Auth.ServiceKeyRef.Key]
+	_, ok := secret.Data[iss.Spec.Auth.ServiceKeyRef.Key]
 	if !ok {
 		err := fmt.Errorf("secret %s does not contain key %q", secret.Name, iss.Spec.Auth.ServiceKeyRef.Key)
 		log.Error(err, "failed to retrieve OriginIssuer auth secret")
@@ -69,25 +68,6 @@ func (r *OriginIssuerController) Reconcile(ctx context.Context, iss *v1.OriginIs
 
 		return reconcile.Result{}, err
 	}
-
-	c, err := r.Factory.APIWith(serviceKey)
-	if err != nil {
-		log.Error(err, "failed to create API client")
-
-		return reconcile.Result{}, err
-	}
-
-	p, err := provisioners.New(c, iss.Spec.RequestType, log)
-	if err != nil {
-		log.Error(err, "failed to create provisioner")
-
-		_ = r.setStatus(ctx, iss, v1.ConditionFalse, "Error", "Failed initialize provisioner")
-
-		return reconcile.Result{}, err
-	}
-
-	// TODO: GC these references once the OriginIssuer has been removed.
-	r.Collection.Store(types.NamespacedName{Name: iss.Name, Namespace: iss.Namespace}, p)
 
 	return reconcile.Result{}, r.setStatus(ctx, iss, v1.ConditionTrue, "Verified", "OriginIssuer verified and ready to sign certificates")
 }

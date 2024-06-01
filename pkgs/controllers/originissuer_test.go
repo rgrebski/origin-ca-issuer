@@ -8,7 +8,6 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
-	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -174,16 +173,14 @@ func TestOriginIssuerReconcile(t *testing.T) {
 				WithStatusSubresource(&v1.OriginIssuer{}).
 				Build()
 
-			collection := provisioners.CollectionWith(nil)
-
 			controller := &OriginIssuerController{
 				Client: client,
+				Reader: client,
 				Factory: cfapi.FactoryFunc(func(serviceKey []byte) (cfapi.Interface, error) {
 					return nil, nil
 				}),
-				Clock:      clock,
-				Log:        logf.Log,
-				Collection: collection,
+				Clock: clock,
+				Log:   logf.Log,
 			}
 
 			_, err := reconcile.AsReconciler(client, controller).Reconcile(context.Background(), reconcile.Request{
@@ -202,12 +199,6 @@ func TestOriginIssuerReconcile(t *testing.T) {
 			}
 			if diff := cmp.Diff(got.Status, tt.expected); diff != "" {
 				t.Fatalf("diff: (-want +got)\n%s", diff)
-			}
-
-			if tt.error == "" {
-				if _, ok := controller.Collection.Load(tt.namespaceName); !ok {
-					t.Fatal("was unable to find provisioner")
-				}
 			}
 		})
 	}

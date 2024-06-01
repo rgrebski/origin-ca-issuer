@@ -12,6 +12,8 @@ import (
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
 	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"github.com/go-logr/logr"
+	core "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
@@ -25,8 +27,9 @@ const originDBWriteErrorCode = 1100
 // that references this controller.
 type CertificateRequestController struct {
 	client.Client
-	Log        logr.Logger
-	Collection *provisioners.Collection
+	Reader  client.Reader
+	Log     logr.Logger
+	Factory cfapi.Factory
 
 	Clock                  clock.Clock
 	CheckApprovedCondition bool
@@ -128,12 +131,43 @@ func (r *CertificateRequestController) Reconcile(ctx context.Context, cr *certma
 		return reconcile.Result{}, err
 	}
 
-	p, ok := r.Collection.Load(issNamespaceName)
-	if !ok {
-		err := fmt.Errorf("provisioner %s not found", issNamespaceName)
-		log.Error(err, "failed to load provisioner for OriginIssuer resource")
+	secret := core.Secret{}
+	secretNamespaceName := types.NamespacedName{
+		Namespace: iss.Namespace,
+		Name:      iss.Spec.Auth.ServiceKeyRef.Name,
+	}
+	if err := r.Reader.Get(ctx, secretNamespaceName, &secret); err != nil {
+		log.Error(err, "failed to retieve OriginIssuer auth secret", "namespace", secretNamespaceName.Namespace, "name", secretNamespaceName.Name)
+		if apierrors.IsNotFound(err) {
+			_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, "NotFound", fmt.Sprintf("Failed to retrieve auth secret: %v", err))
+		} else {
+			_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, "Error", fmt.Sprintf("Failed to retrieve auth secret: %v", err))
+		}
 
-		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("Failed to load provisioner for OriginIssuer resource %s", issNamespaceName))
+		return reconcile.Result{}, err
+	}
+
+	serviceKey, ok := secret.Data[iss.Spec.Auth.ServiceKeyRef.Key]
+	if !ok {
+		err := fmt.Errorf("secret %s does not contain key %q", secret.Name, iss.Spec.Auth.ServiceKeyRef.Key)
+		log.Error(err, "failed to retrieve OriginIssuer auth secret")
+		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, "NotFound", fmt.Sprintf("Failed to retrieve auth secret: %v", err))
+
+		return reconcile.Result{}, err
+	}
+
+	c, err := r.Factory.APIWith(serviceKey)
+	if err != nil {
+		log.Error(err, "failed to create API client")
+
+		return reconcile.Result{}, err
+	}
+
+	p, err := provisioners.New(c, iss.Spec.RequestType, log)
+	if err != nil {
+		log.Error(err, "failed to create provisioner")
+
+		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, "Error", "Failed initialize provisioner")
 
 		return reconcile.Result{}, err
 	}

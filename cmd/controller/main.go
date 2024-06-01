@@ -10,7 +10,6 @@ import (
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
 	"github.com/cloudflare/origin-ca-issuer/pkgs/controllers"
-	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
@@ -76,8 +75,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	collection := provisioners.CollectionWith(nil)
-
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -89,11 +86,11 @@ func main() {
 		ControllerManagedBy(mgr).
 		For(&v1.OriginIssuer{}).
 		Complete(reconcile.AsReconciler(mgr.GetClient(), &controllers.OriginIssuerController{
-			Client:     mgr.GetClient(),
-			Clock:      clock.RealClock{},
-			Factory:    f,
-			Log:        log.WithName("controllers").WithName("OriginIssuer"),
-			Collection: collection,
+			Client:  mgr.GetClient(),
+			Reader:  mgr.GetAPIReader(),
+			Clock:   clock.RealClock{},
+			Factory: f,
+			Log:     log.WithName("controllers").WithName("OriginIssuer"),
 		}))
 
 	if err != nil {
@@ -105,9 +102,9 @@ func main() {
 		ControllerManagedBy(mgr).
 		For(&certmanager.CertificateRequest{}).
 		Complete(reconcile.AsReconciler(mgr.GetClient(), &controllers.CertificateRequestController{
-			Client:     mgr.GetClient(),
-			Log:        log.WithName("controllers").WithName("CertificateRequest"),
-			Collection: collection,
+			Client: mgr.GetClient(),
+			Reader: mgr.GetAPIReader(),
+			Log:    log.WithName("controllers").WithName("CertificateRequest"),
 
 			Clock:                  clock.RealClock{},
 			CheckApprovedCondition: !o.DisableApprovedCheck,

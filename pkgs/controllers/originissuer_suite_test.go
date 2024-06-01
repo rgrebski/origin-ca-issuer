@@ -14,7 +14,6 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/cloudflare/origin-ca-issuer/internal/cfapi"
 	v1 "github.com/cloudflare/origin-ca-issuer/pkgs/apis/v1"
-	"github.com/cloudflare/origin-ca-issuer/pkgs/provisioners"
 	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"
 	corev1 "k8s.io/api/core/v1"
@@ -94,11 +93,11 @@ func TestOriginIssuerReconcileSuite(t *testing.T) {
 	})
 
 	controller := &OriginIssuerController{
-		Client:     c,
-		Clock:      clock.RealClock{},
-		Factory:    f,
-		Log:        logf.Log,
-		Collection: provisioners.CollectionWith(nil),
+		Client:  c,
+		Reader:  c,
+		Clock:   clock.RealClock{},
+		Factory: f,
+		Log:     logf.Log,
 	}
 
 	builder.ControllerManagedBy(mgr).
@@ -137,15 +136,6 @@ func TestOriginIssuerReconcileSuite(t *testing.T) {
 
 		return IssuerHasCondition(iss, v1.OriginIssuerCondition{Type: v1.ConditionReady, Status: v1.ConditionTrue})
 	}, 5*time.Second, 10*time.Millisecond, "OriginIssuer reconciler")
-
-	_, ok := controller.Collection.Load(types.NamespacedName{
-		Namespace: issuer.Namespace,
-		Name:      issuer.Name,
-	})
-
-	if !ok {
-		t.Fatal("was unable to find provisioner")
-	}
 }
 
 func StartTestManager(mgr manager.Manager, t *testing.T) (context.CancelFunc, chan error) {
