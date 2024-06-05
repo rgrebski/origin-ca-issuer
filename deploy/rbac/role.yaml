@@ -39,6 +39,23 @@ rules:
 - apiGroups:
   - cert-manager.k8s.cloudflare.com
   resources:
+  - clusteroriginissuers
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cert-manager.k8s.cloudflare.com
+  resources:
+  - clusteroriginissuers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - cert-manager.k8s.cloudflare.com
+  resources:
   - originissuers
   verbs:
   - create

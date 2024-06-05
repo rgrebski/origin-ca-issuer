@@ -1,4 +1,3 @@
-
 ---
 # permissions to approve all cert-manager.k8s.cloudflare.com requests
 apiVersion: rbac.authorization.k8s.io/v1
@@ -6,11 +5,12 @@ kind: ClusterRole
 metadata:
   name: cert-manager-controller-approve:cert-manager-k8s-cloudflare-com
 rules:
-- apiGroups:
-  - cert-manager.io
-  resources:
-  - signers
-  verbs:
-  - approve
-  resourceNames:
-  - originissuers.cert-manager.k8s.cloudflare.com/*
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - signers
+    verbs:
+      - approve
+    resourceNames:
+      - originissuers.cert-manager.k8s.cloudflare.com/*
+      - clusteroriginissuers.cert-manager.k8s.cloudflare.com/*

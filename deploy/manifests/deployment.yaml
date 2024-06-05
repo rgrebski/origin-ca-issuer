@@ -15,8 +15,15 @@ spec:
     spec:
       serviceAccountName: originissuer-control
       containers:
-        - image: cloudflare/origin-ca-issuer:v0.8.0
-          name: origin-ca-controller
+        - name: origin-ca-controller
+          image: cloudflare/origin-ca-issuer:v0.8.0
+          args:
+            - --cluster-resource-namespace=${POD_NAMESPACE}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           resources:
             limits:
               cpu: "1"

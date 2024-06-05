@@ -32,6 +32,35 @@ type OriginIssuerList struct {
 	Items []OriginIssuer `json:"items"`
 }
 
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
+
+// A ClusterOriginIssuer represents the Cloudflare Origin CA as an external cert-manager issuer.
+// It is scoped to a single namespace, so it can be used only by resources in the same
+// namespace.
+type ClusterOriginIssuer struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// Spec is the desired state of the ClusterOriginIssuer resource.
+	Spec OriginIssuerSpec `json:"spec,omitempty"`
+
+	// Status of the ClusterOriginIssuer. This is set and managed automatically.
+	// +optional
+	Status OriginIssuerStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ClusterOriginIssuerList is a list of OriginIssuers.
+type ClusterOriginIssuerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata.omitempty"`
+
+	Items []ClusterOriginIssuer `json:"items"`
+}
+
 // OriginIssuerSpec is the specification of an OriginIssuer. This includes any
 // configuration required for the issuer.
 type OriginIssuerSpec struct {
@@ -60,7 +89,9 @@ type OriginIssuerAuthentication struct {
 
 // SecretKeySelector contains a reference to a secret.
 type SecretKeySelector struct {
-	// Name of the secret in the OriginIssuer's namespace to select from.
+	// Name of the secret in the issuer's namespace to select. If a cluster-scoped
+	// issuer, the secret is selected from the "cluster resource namespace" configured
+	// on the controller.
 	Name string `json:"name"`
 	// Key of the secret to select from. Must be a valid secret key.
 	Key string `json:"key"`

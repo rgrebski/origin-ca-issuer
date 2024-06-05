@@ -100,11 +100,30 @@ func main() {
 
 	err = builder.
 		ControllerManagedBy(mgr).
+		For(&v1.ClusterOriginIssuer{}).
+		Complete(reconcile.AsReconciler(mgr.GetClient(), &controllers.ClusterOriginIssuerController{
+			Client:                   mgr.GetClient(),
+			Reader:                   mgr.GetAPIReader(),
+			ClusterResourceNamespace: o.ClusterResourceNamespace,
+			Clock:                    clock.RealClock{},
+			Factory:                  f,
+			Log:                      log.WithName("controllers").WithName("ClusterOriginIssuer"),
+		}))
+
+	if err != nil {
+		log.Error(err, "could not create cluster origin issuer controller")
+		os.Exit(1)
+	}
+
+	err = builder.
+		ControllerManagedBy(mgr).
 		For(&certmanager.CertificateRequest{}).
 		Complete(reconcile.AsReconciler(mgr.GetClient(), &controllers.CertificateRequestController{
-			Client: mgr.GetClient(),
-			Reader: mgr.GetAPIReader(),
-			Log:    log.WithName("controllers").WithName("CertificateRequest"),
+			Client:                   mgr.GetClient(),
+			Reader:                   mgr.GetAPIReader(),
+			ClusterResourceNamespace: o.ClusterResourceNamespace,
+			Factory:                  f,
+			Log:                      log.WithName("controllers").WithName("CertificateRequest"),
 
 			Clock:                  clock.RealClock{},
 			CheckApprovedCondition: !o.DisableApprovedCheck,

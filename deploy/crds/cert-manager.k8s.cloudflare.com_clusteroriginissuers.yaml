@@ -4,22 +4,22 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.13.0
-  name: originissuers.cert-manager.k8s.cloudflare.com
+  name: clusteroriginissuers.cert-manager.k8s.cloudflare.com
 spec:
   group: cert-manager.k8s.cloudflare.com
   names:
-    kind: OriginIssuer
-    listKind: OriginIssuerList
-    plural: originissuers
-    singular: originissuer
-  scope: Namespaced
+    kind: ClusterOriginIssuer
+    listKind: ClusterOriginIssuerList
+    plural: clusteroriginissuers
+    singular: clusteroriginissuer
+  scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: An OriginIssuer represents the Cloudflare Origin CA as an external
-          cert-manager issuer. It is scoped to a single namespace, so it can be used
-          only by resources in the same namespace.
+        description: A ClusterOriginIssuer represents the Cloudflare Origin CA as
+          an external cert-manager issuer. It is scoped to a single namespace, so
+          it can be used only by resources in the same namespace.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Desired state of the OriginIssuer resource
+            description: Spec is the desired state of the ClusterOriginIssuer resource.
             properties:
               auth:
                 description: Auth configures how to authenticate with the Cloudflare
@@ -70,7 +70,8 @@ spec:
             - requestType
             type: object
           status:
-            description: Status of the OriginIssuer. This is set and managed automatically.
+            description: Status of the ClusterOriginIssuer. This is set and managed
+              automatically.
             properties:
               conditions:
                 description: List of status conditions to indicate the status of an

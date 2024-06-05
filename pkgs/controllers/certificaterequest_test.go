@@ -47,7 +47,7 @@ func TestCertificateRequestReconcile(t *testing.T) {
 		namespaceName types.NamespacedName
 	}{
 		{
-			name: "working",
+			name: "working OriginIssuer",
 			objects: []runtime.Object{
 				cmgen.CertificateRequest("foobar",
 					cmgen.SetCertificateRequestNamespace("default"),
@@ -92,6 +92,85 @@ func TestCertificateRequestReconcile(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "service-key-issuer",
 						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						"key": []byte("djEuMC0weDAwQkFCMTBD"),
+					},
+				},
+			},
+			signer: SignerFunc(func(ctx context.Context, sr *cfapi.SignRequest) (*cfapi.SignResponse, error) {
+				return &cfapi.SignResponse{
+					Id:          "1",
+					Certificate: "bogus",
+					Hostnames:   []string{"example.com"},
+					Expiration:  time.Time{},
+					Type:        "colemak",
+					Validity:    0,
+					CSR:         "foobar",
+				}, nil
+			}),
+			expected: cmapi.CertificateRequestStatus{
+				Conditions: []cmapi.CertificateRequestCondition{
+					{
+						Type:               cmapi.CertificateRequestConditionReady,
+						Status:             cmmeta.ConditionTrue,
+						LastTransitionTime: &now,
+						Reason:             "Issued",
+						Message:            "Certificate issued",
+					},
+				},
+				Certificate: []byte("bogus"),
+			},
+			namespaceName: types.NamespacedName{
+				Namespace: "default",
+				Name:      "foobar",
+			},
+		},
+		{
+			name: "working ClusterOriginIssuer",
+			objects: []runtime.Object{
+				cmgen.CertificateRequest("foobar",
+					cmgen.SetCertificateRequestNamespace("default"),
+					cmgen.SetCertificateRequestDuration(&metav1.Duration{Duration: 7 * 24 * time.Hour}),
+					cmgen.SetCertificateRequestCSR((func() []byte {
+						csr, _, err := cmgen.CSR(x509.ECDSA)
+						if err != nil {
+							t.Fatalf("creating CSR: %s", err)
+						}
+
+						return csr
+					})()),
+					cmgen.SetCertificateRequestIssuer(cmmeta.ObjectReference{
+						Name:  "foobar",
+						Kind:  "ClusterOriginIssuer",
+						Group: "cert-manager.k8s.cloudflare.com",
+					}),
+				),
+				&v1.ClusterOriginIssuer{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foobar",
+					},
+					Spec: v1.OriginIssuerSpec{
+						Auth: v1.OriginIssuerAuthentication{
+							ServiceKeyRef: v1.SecretKeySelector{
+								Name: "service-key-issuer",
+								Key:  "key",
+							},
+						},
+					},
+					Status: v1.OriginIssuerStatus{
+						Conditions: []v1.OriginIssuerCondition{
+							{
+								Type:   v1.ConditionReady,
+								Status: v1.ConditionTrue,
+							},
+						},
+					},
+				},
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "service-key-issuer",
+						Namespace: "super-secret",
 					},
 					Data: map[string][]byte{
 						"key": []byte("djEuMC0weDAwQkFCMTBD"),
@@ -203,9 +282,10 @@ func TestCertificateRequestReconcile(t *testing.T) {
 				Build()
 
 			controller := &CertificateRequestController{
-				Client: client,
-				Reader: client,
-				Log:    logf.Log,
+				Client:                   client,
+				Reader:                   client,
+				ClusterResourceNamespace: "super-secret",
+				Log:                      logf.Log,
 				Factory: cfapi.FactoryFunc(func(serviceKey []byte) (cfapi.Interface, error) {
 					return tt.signer, nil
 				}),

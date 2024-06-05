@@ -7,12 +7,13 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// IssuerHasCondition will return true if the given OriginIssuer has a condition
-// matching the provided OriginIssuerCondtion. Only the Type and Status fields
-// are used in the comparison, meaning this function will return `true` even if
-// the Reason, Message, and LastTransitionTime fields do not match.
-func IssuerHasCondition(iss v1.OriginIssuer, c v1.OriginIssuerCondition) bool {
-	for _, cond := range iss.Status.Conditions {
+// IssuerStatusHasCondition will return true if the given OriginIssuerStatus has
+// a condition matching the provided OriginIssuerCondtion. Only the Type and
+// Status fields are used in the comparison, meaning this function will return
+// `true` even if the Reason, Message, and LastTransitionTime fields do not
+// match.
+func IssuerStatusHasCondition(status v1.OriginIssuerStatus, c v1.OriginIssuerCondition) bool {
+	for _, cond := range status.Conditions {
 		if c.Type == cond.Type && c.Status == cond.Status {
 			return true
 		}
@@ -21,7 +22,7 @@ func IssuerHasCondition(iss v1.OriginIssuer, c v1.OriginIssuerCondition) bool {
 	return false
 }
 
-// SetIssuerCondition will set a condition on the given OriginIssuer.
+// SetIssuerStatusCondition will set a condition on the given OriginIssuerStatus.
 //
 // If no condition of the same type exists, the condition will be inserted with
 // the LastTransitionTime set to the current time.
@@ -32,7 +33,7 @@ func IssuerHasCondition(iss v1.OriginIssuer, c v1.OriginIssuerCondition) bool {
 // If a condition of the same type and different state already exists, the
 // condition will be updated and the LastTransitionTime set to the current
 // time.
-func SetIssuerCondition(iss *v1.OriginIssuer, conditionType v1.ConditionType, status v1.ConditionStatus, log logr.Logger, cl clock.Clock, reason, message string) {
+func SetIssuerStatusCondition(ois *v1.OriginIssuerStatus, conditionType v1.ConditionType, status v1.ConditionStatus, log logr.Logger, cl clock.Clock, reason, message string) {
 	now := metav1.NewTime(cl.Now())
 	c := v1.OriginIssuerCondition{
 		Type:               conditionType,
@@ -42,7 +43,7 @@ func SetIssuerCondition(iss *v1.OriginIssuer, conditionType v1.ConditionType, st
 		LastTransitionTime: &now,
 	}
 
-	for i, condition := range iss.Status.Conditions {
+	for i, condition := range ois.Conditions {
 		if condition.Type != conditionType {
 			continue
 		}
@@ -57,10 +58,10 @@ func SetIssuerCondition(iss *v1.OriginIssuer, conditionType v1.ConditionType, st
 			)
 		}
 
-		iss.Status.Conditions[i] = c
+		ois.Conditions[i] = c
 
 		return
 	}
 
-	iss.Status.Conditions = append(iss.Status.Conditions, c)
+	ois.Conditions = append(ois.Conditions, c)
 }

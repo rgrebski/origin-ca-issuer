@@ -23,5 +23,5 @@ var (
 )
 
 func init() {
-	SchemeBuilder.Register(&OriginIssuer{}, &OriginIssuerList{})
+	SchemeBuilder.Register(&OriginIssuer{}, &OriginIssuerList{}, &ClusterOriginIssuer{}, &ClusterOriginIssuerList{})
 }

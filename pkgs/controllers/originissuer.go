@@ -74,7 +74,7 @@ func (r *OriginIssuerController) Reconcile(ctx context.Context, iss *v1.OriginIs
 
 // setStatus is a helper function to set the Issuer status condition with reason and message, and update the API.
 func (r *OriginIssuerController) setStatus(ctx context.Context, iss *v1.OriginIssuer, status v1.ConditionStatus, reason, message string) error {
-	SetIssuerCondition(iss, v1.ConditionReady, status, r.Log, r.Clock, reason, message)
+	SetIssuerStatusCondition(&iss.Status, v1.ConditionReady, status, r.Log, r.Clock, reason, message)
 
 	return r.Client.Status().Update(ctx, iss)
 }

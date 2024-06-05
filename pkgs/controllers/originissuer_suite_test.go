@@ -134,7 +134,7 @@ func TestOriginIssuerReconcileSuite(t *testing.T) {
 			return false
 		}
 
-		return IssuerHasCondition(iss, v1.OriginIssuerCondition{Type: v1.ConditionReady, Status: v1.ConditionTrue})
+		return IssuerStatusHasCondition(iss.Status, v1.OriginIssuerCondition{Type: v1.ConditionReady, Status: v1.ConditionTrue})
 	}, 5*time.Second, 10*time.Millisecond, "OriginIssuer reconciler")
 }
 

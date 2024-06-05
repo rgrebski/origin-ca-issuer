@@ -27,9 +27,10 @@ const originDBWriteErrorCode = 1100
 // that references this controller.
 type CertificateRequestController struct {
 	client.Client
-	Reader  client.Reader
-	Log     logr.Logger
-	Factory cfapi.Factory
+	Reader                   client.Reader
+	ClusterResourceNamespace string
+	Log                      logr.Logger
+	Factory                  cfapi.Factory
 
 	Clock                  clock.Clock
 	CheckApprovedCondition bool
@@ -110,32 +111,74 @@ func (r *CertificateRequestController) Reconcile(ctx context.Context, cr *certma
 		return reconcile.Result{}, nil
 	}
 
-	iss := v1.OriginIssuer{}
-	issNamespaceName := types.NamespacedName{
-		Namespace: cr.Namespace,
-		Name:      cr.Spec.IssuerRef.Name,
-	}
+	var (
+		secretNamespaceName types.NamespacedName
+		issuerspec          v1.OriginIssuerSpec
+	)
 
-	if err := r.Client.Get(ctx, issNamespaceName, &iss); err != nil {
-		log.Error(err, "failed to retrieve OriginIssuer resource", "namespace", issNamespaceName.Namespace, "name", issNamespaceName.Name)
-		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("Failed to retrieve OriginIssuer resource %s: %v", issNamespaceName, err))
+	switch cr.Spec.IssuerRef.Kind {
+	case "OriginIssuer":
+		iss := v1.OriginIssuer{}
+		issNamespaceName := types.NamespacedName{
+			Namespace: cr.Namespace,
+			Name:      cr.Spec.IssuerRef.Name,
+		}
+
+		if err := r.Client.Get(ctx, issNamespaceName, &iss); err != nil {
+			log.Error(err, "failed to retrieve OriginIssuer resource", "namespace", issNamespaceName.Namespace, "name", issNamespaceName.Name)
+			_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("Failed to retrieve OriginIssuer resource %s: %v", issNamespaceName, err))
+
+			return reconcile.Result{}, err
+		}
+
+		if !IssuerStatusHasCondition(iss.Status, v1.OriginIssuerCondition{Type: v1.ConditionReady, Status: v1.ConditionTrue}) {
+			err := fmt.Errorf("resource %s is not ready", issNamespaceName)
+			log.Error(err, "issuer failed readiness checks", "namespace", issNamespaceName.Namespace, "name", issNamespaceName.Name)
+			_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("OriginIssuer %s is not Ready", issNamespaceName))
+
+			return reconcile.Result{}, err
+		}
+
+		secretNamespaceName = types.NamespacedName{
+			Namespace: iss.Namespace,
+			Name:      iss.Spec.Auth.ServiceKeyRef.Name,
+		}
+		issuerspec = iss.Spec
+	case "ClusterOriginIssuer":
+		iss := v1.ClusterOriginIssuer{}
+		issNamespaceName := types.NamespacedName{
+			Name: cr.Spec.IssuerRef.Name,
+		}
+
+		if err := r.Client.Get(ctx, issNamespaceName, &iss); err != nil {
+			log.Error(err, "failed to retrieve OriginIssuer resource", "namespace", issNamespaceName.Namespace, "name", issNamespaceName.Name)
+			_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("Failed to retrieve OriginIssuer resource %s: %v", issNamespaceName, err))
+
+			return reconcile.Result{}, err
+		}
+
+		if !IssuerStatusHasCondition(iss.Status, v1.OriginIssuerCondition{Type: v1.ConditionReady, Status: v1.ConditionTrue}) {
+			err := fmt.Errorf("resource %s is not ready", issNamespaceName)
+			log.Error(err, "issuer failed readiness checks", "namespace", issNamespaceName.Namespace, "name", issNamespaceName.Name)
+			_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("OriginIssuer %s is not Ready", issNamespaceName))
+
+			return reconcile.Result{}, err
+		}
+
+		secretNamespaceName = types.NamespacedName{
+			Namespace: r.ClusterResourceNamespace,
+			Name:      iss.Spec.Auth.ServiceKeyRef.Name,
+		}
+		issuerspec = iss.Spec
+	default:
+		err := fmt.Errorf("unknown issuer kind: %s", cr.Spec.IssuerRef.Kind)
+		log.Error(err, "certificate request references unknown issuer kind", "namespace", cr.Namespace, "name", cr.Name)
+		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonFailed, fmt.Sprintf("Unknown issuer kind: %s", cr.Spec.IssuerRef.Kind))
 
 		return reconcile.Result{}, err
 	}
 
-	if !IssuerHasCondition(iss, v1.OriginIssuerCondition{Type: v1.ConditionReady, Status: v1.ConditionTrue}) {
-		err := fmt.Errorf("resource %s is not ready", issNamespaceName)
-		log.Error(err, "issuer failed readiness checks", "namespace", issNamespaceName.Namespace, "name", issNamespaceName.Name)
-		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, certmanager.CertificateRequestReasonPending, fmt.Sprintf("OriginIssuer %s is not Ready", issNamespaceName))
-
-		return reconcile.Result{}, err
-	}
-
-	secret := core.Secret{}
-	secretNamespaceName := types.NamespacedName{
-		Namespace: iss.Namespace,
-		Name:      iss.Spec.Auth.ServiceKeyRef.Name,
-	}
+	var secret core.Secret
 	if err := r.Reader.Get(ctx, secretNamespaceName, &secret); err != nil {
 		log.Error(err, "failed to retieve OriginIssuer auth secret", "namespace", secretNamespaceName.Namespace, "name", secretNamespaceName.Name)
 		if apierrors.IsNotFound(err) {
@@ -147,9 +190,9 @@ func (r *CertificateRequestController) Reconcile(ctx context.Context, cr *certma
 		return reconcile.Result{}, err
 	}
 
-	serviceKey, ok := secret.Data[iss.Spec.Auth.ServiceKeyRef.Key]
+	serviceKey, ok := secret.Data[issuerspec.Auth.ServiceKeyRef.Key]
 	if !ok {
-		err := fmt.Errorf("secret %s does not contain key %q", secret.Name, iss.Spec.Auth.ServiceKeyRef.Key)
+		err := fmt.Errorf("secret %s does not contain key %q", secret.Name, issuerspec.Auth.ServiceKeyRef.Key)
 		log.Error(err, "failed to retrieve OriginIssuer auth secret")
 		_ = r.setStatus(ctx, cr, cmmeta.ConditionFalse, "NotFound", fmt.Sprintf("Failed to retrieve auth secret: %v", err))
 
@@ -163,7 +206,7 @@ func (r *CertificateRequestController) Reconcile(ctx context.Context, cr *certma
 		return reconcile.Result{}, err
 	}
 
-	p, err := provisioners.New(c, iss.Spec.RequestType, log)
+	p, err := provisioners.New(c, issuerspec.RequestType, log)
 	if err != nil {
 		log.Error(err, "failed to create provisioner")
 
