@@ -64,9 +64,14 @@ spec:
           {{- if .Values.controller.volumeMounts }}
           volumeMounts: {{ toYaml .Values.controller.volumeMounts | nindent 12 }}
           {{- end }}
-          {{- if .Values.controller.disableApprovedCheck }}
           args:
+          {{- if .Values.controller.disableApprovedCheck }}
             - --disable-approved-check
+          {{- end }}
+          {{- if .Values.controller.clusterResourceNamespace }}
+            - --cluster-resource-namespace={{ .Values.controller.clusterResourceNamespace }}
+          {{- else }}
+            - --cluster-resource-namespace=$(POD_NAMESPACE)
           {{- end }}
           env:
             - name: POD_NAMESPACE

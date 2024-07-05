@@ -18,7 +18,7 @@ global:
 controller:
   image:
     repository: cloudflare/origin-ca-issuer
-    tag: v0.8.0
+    tag: v0.9.0
     pullPolicy: Always
 
   replicaCount: 1
@@ -33,6 +33,10 @@ controller:
 
   # Disable waiting for CertificateRequests to be Approved before signing
   disableApprovedCheck: false
+
+  # Override the namespace used to resolve API tokens for OriginClusterIssuer resources.
+  # By default, the namespace of the controller is used.
+  clusterResourceNamespace: ""
 
   # Optional additional arguments
   extraArgs: []

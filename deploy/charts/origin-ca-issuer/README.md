@@ -12,14 +12,14 @@ origin-ca-issuer is a Kubernetes addon to automate issuance and renewals of Clou
 Before installing the chart, you must first install [cert-manager](https://cert-manager.io/docs/installation/), and the origin-ca-issuer CustomResourceDefinition resources.
 
 ```shell
-VERSION="v0.8.0"
+VERSION="v0.9.0"
 kubectl apply -f https://raw.githubusercontent.com/cloudflare/origin-ca-issuer/${VERSION}/deploy/crds/cert-manager.k8s.cloudflare.com_originissuers.yaml
 ```
 
 To install the chart with the release name `my-release`:
 
 ``` shell
-helm install --name my-release oci://ghcr.io/cloudflare/origin-ca-issuer-charts/origin-ca-issuer --version 0.5.2
+helm install --name my-release oci://ghcr.io/cloudflare/origin-ca-issuer-charts/origin-ca-issuer --version 0.5.5
 ```
 
 In order to begin issuing certificates from the Cloudflare Origin CA you will need to set up an OriginIssuer. For more information, see the [documentation](https://github.com/cloudflare/origin-ca-issuer/blob/trunk/README.org).
@@ -34,7 +34,7 @@ helm delete my-release
 If you want to completely uninstall origin-ca-issuer from your cluster, you also need to delete the previously installed CustomResourceDefinition resources:
 
 ``` shell
-VERSION="v0.8.0"
+VERSION="v0.9.0"
 kubectl delete -f https://raw.githubusercontent.com/cloudflare/origin-ca-issuer/${VERSION}/deploy/crds/cert-manager.k8s.cloudflare.com_originissuers.yaml
 ```
 
@@ -69,6 +69,7 @@ The following table lists the configurable parameters of the origin-ca-issuer ch
 | `controller.affinity`                 | Node (anti-)affinity for pod assignment                                                 | `{}`                                                                           |
 | `controller.tolerations`              | Node tolerations for pod assignment                                                     | `{}`                                                                           |
 | `controller.disableApprovedCheck`     | Disable waiting for CertificateRequests to be Approved before signing                   | `false`                                                                        |
+| `controller.clusterResourceNamespace` | Override the namespace used for ClusterOriginIssuer secrets                             | `""`                                                                           |
 | `controller.resources`                | The resource request and limits.                                                        | `{requests: {cpu: "1", memory: "512Mi"}, limits: {cpu: "1", memory: "512Mi"}}` |
 | `certmanager.namespace`               | Namespace where the cert-manager controller is running.                                 | `cert-manager`                                                                 |
 | `certmanager.serviceAccountName`      | The Service Account used by the cert-manager controller.                                | `cert-manager`                                                                 |
