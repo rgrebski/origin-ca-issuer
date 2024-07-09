@@ -24,10 +24,10 @@ rules:
     resources: ["certificaterequests/status"]
     verbs: ["get", "patch", "update"]
   - apiGroups: ["cert-manager.k8s.cloudflare.com"]
-    resources: ["originissuers"]
+    resources: ["originissuers", "clusteroriginissuers"]
     verbs: ["create", "get", "list", "watch"]
   - apiGroups: ["cert-manager.k8s.cloudflare.com"]
-    resources: ["originissuers/status"]
+    resources: ["originissuers/status", "clusteroriginissuers/status"]
     verbs: ["get", "patch", "update"]
 ---
 # permissions to approve all cert-manager.k8s.cloudflare.com requests
