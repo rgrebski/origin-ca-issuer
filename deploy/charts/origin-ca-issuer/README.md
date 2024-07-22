@@ -14,6 +14,7 @@ Before installing the chart, you must first install [cert-manager](https://cert-
 ```shell
 VERSION="v0.9.0"
 kubectl apply -f https://raw.githubusercontent.com/cloudflare/origin-ca-issuer/${VERSION}/deploy/crds/cert-manager.k8s.cloudflare.com_originissuers.yaml
+kubectl apply -f https://raw.githubusercontent.com/cloudflare/origin-ca-issuer/${VERSION}/deploy/crds/cert-manager.k8s.cloudflare.com_clusteroriginissuers.yaml
 ```
 
 To install the chart with the release name `my-release`:
